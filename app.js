@@ -2,7 +2,7 @@
 import { db, collection, onSnapshot } from './firebase-config.js';
 
 // Configuration
-const PHONE_NUMBER = "919876543210";
+const PHONE_NUMBER = "9111676448";
 const app = document.getElementById('app');
 
 // State
@@ -74,7 +74,7 @@ const Footer = () => `
     <footer class="footer">
         <div class="container">
             <p>&copy; 2024 Local Kirana Shop. All rights reserved.</p>
-            <p>📍 Main Market, Local Area | 📞 +91 98765 43210</p>
+            <p>📍 Main Market, Local Area | 📞 +91 91116 76448</p>
             <p style="margin-top: 10px; font-size: 0.8rem;"><a href="admin.html" style="color: #999; text-decoration: none;">Admin Login</a></p>
         </div>
     </footer>
