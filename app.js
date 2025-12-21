@@ -1,0 +1,259 @@
+// app.js - Main Client Logic (SPA Version)
+import { db, collection, onSnapshot } from './firebase-config.js';
+
+// Configuration
+const PHONE_NUMBER = "919876543210";
+const app = document.getElementById('app');
+
+// State
+let products = [];
+let cart = {};
+let activeCategory = 'all';
+
+// --- Components (HTML Templates) ---
+
+const CATEGORY_META = {
+    vegetables: { icon: '🍅', label: 'Veg' },
+    fruits: { icon: '🍎', label: 'Fruits' },
+    staples: { icon: '🌾', label: 'Staples' },
+    essentials: { icon: '🧼', label: 'Daily Needs' }
+};
+
+const Navbar = () => `
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">Kirana Store</h1>
+            <a href="#products" class="btn-primary-outline">Browse Items</a>
+        </div>
+    </nav>
+`;
+
+const Hero = () => `
+    <header class="hero">
+        <div class="hero-content">
+            <div class="hero-text">
+                <h2>Fresh Grocery Delivered via WhatsApp</h2>
+                <p>Order fresh vegetables, fruits, and daily essentials directly from your local shop.</p>
+                <a href="#products" class="btn-primary">Order on WhatsApp</a>
+            </div>
+        </div>
+    </header>
+`;
+
+const Categories = () => `
+    <section id="categories" class="section">
+        <div class="container">
+            <h3 class="section-title">Shop by Category</h3>
+            <div class="category-grid">
+                <!-- Dynamic Content -->
+            </div>
+        </div>
+    </section>
+`;
+
+const ProductsSection = () => `
+    <section id="products" class="section">
+        <div class="container">
+            <h3 class="section-title">Fresh Products</h3>
+            <div id="product-grid" class="product-grid">
+                <div class="loader" id="loader" style="display:block;"></div>
+            </div>
+        </div>
+    </section>
+`;
+
+const FloatingCart = () => `
+    <div class="floating-cart" id="floating-cart" style="display: none;">
+        <button class="btn-whatsapp" onclick="checkout()">
+            <span class="icon">💬</span> Order (<span id="cart-count">0</span>) items
+        </button>
+    </div>
+`;
+
+const Footer = () => `
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 Local Kirana Shop. All rights reserved.</p>
+            <p>📍 Main Market, Local Area | 📞 +91 98765 43210</p>
+            <p style="margin-top: 10px; font-size: 0.8rem;"><a href="admin.html" style="color: #999; text-decoration: none;">Admin Login</a></p>
+        </div>
+    </footer>
+`;
+
+// --- Rendering ---
+
+function renderApp() {
+    app.innerHTML = `
+        ${Navbar()}
+        ${Hero()}
+        ${Categories()}
+        ${ProductsSection()}
+        ${FloatingCart()}
+        ${Footer()}
+    `;
+    // Re-bind products after render
+    renderCategories();
+    renderProductGrid(products);
+    updateCartUI();
+}
+
+// Initial Render
+renderApp();
+
+// --- Logic ---
+
+// Dynamic Category Renderer
+function renderCategories() {
+    const grid = document.querySelector('.category-grid');
+    if (!grid) return;
+
+    // Count products per category
+    const counts = {};
+    products.forEach(p => {
+        counts[p.category] = (counts[p.category] || 0) + 1;
+    });
+
+    // Generate HTML
+    let html = `
+        <div class="category-card ${activeCategory === 'all' ? 'active' : ''}" onclick="window.setCategory('all')">
+            🥬 <br>All Items
+        </div>
+    `;
+
+    Object.keys(CATEGORY_META).forEach(cat => {
+        if (counts[cat] > 0) {
+            const meta = CATEGORY_META[cat];
+            html += `
+                <div class="category-card ${activeCategory === cat ? 'active' : ''}" onclick="window.setCategory('${cat}')">
+                    ${meta.icon} <br>${meta.label}
+                </div>
+            `;
+        }
+    });
+
+    // Check if active category is empty (and switch to all if needed)
+    if (activeCategory !== 'all' && !counts[activeCategory]) {
+        activeCategory = 'all';
+        // Recursion safe because 'all' is always valid
+        renderCategories();
+        renderProductGrid(products);
+        return;
+    }
+
+    grid.innerHTML = html;
+}
+
+// Set Category Global
+window.setCategory = (cat) => {
+    activeCategory = cat;
+    renderCategories();
+    renderProductGrid(products);
+};
+
+// Fetch Products
+const productsRef = collection(db, 'products');
+onSnapshot(productsRef, (snapshot) => {
+    products = [];
+    snapshot.forEach(doc => {
+        products.push({ id: doc.id, ...doc.data() });
+    });
+    renderCategories(); // Update categories based on new data
+    renderProductGrid(products);
+});
+
+function renderProductGrid(fullList) {
+    const grid = document.getElementById('product-grid');
+    if (!grid) return;
+
+
+    let displayList = fullList;
+    if (activeCategory !== 'all') {
+        displayList = fullList.filter(p => p.category === activeCategory);
+    }
+
+    if (displayList.length === 0) {
+        grid.innerHTML = '<p style="text-align:center; width:100%; color:#666;">No products found.</p>';
+        return;
+    }
+
+    grid.innerHTML = displayList.map(product => {
+        const qty = cart[product.id] ? cart[product.id].qty : 0;
+        return `
+        <div class="product-card">
+            <img src="${product.image || 'assets/default.png'}" class="product-img" alt="${product.name}" onerror="this.src='https://placehold.co/150'">
+            <div class="product-name">${product.name}</div>
+            <div class="product-price">₹${product.price}/${product.unit}</div>
+            
+            <div class="qty-selector">
+                ${qty === 0
+                ? `<button class="btn-primary add-btn" onclick="updateQty('${product.id}', 1)">Add +</button>`
+                : `
+                     <button class="btn-qty" onclick="updateQty('${product.id}', -1)">-</button>
+                     <span class="qty-count">${qty}</span>
+                     <button class="btn-qty" onclick="updateQty('${product.id}', 1)">+</button>
+                    `
+            }
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+// Global Quantity Update
+window.updateQty = (productId, change) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    if (!cart[productId]) {
+        cart[productId] = { ...product, qty: 0 };
+    }
+
+    cart[productId].qty += change;
+
+    if (cart[productId].qty <= 0) {
+        delete cart[productId];
+    }
+
+    updateCartUI();
+    renderProductGrid(products);
+};
+
+function updateCartUI() {
+    const cartCount = document.getElementById('cart-count');
+    const floatingCart = document.getElementById('floating-cart');
+
+    let totalQty = 0;
+    Object.values(cart).forEach(item => totalQty += item.qty);
+
+    if (cartCount) cartCount.textContent = totalQty;
+
+    if (floatingCart) {
+        floatingCart.style.display = totalQty > 0 ? 'block' : 'none';
+        if (totalQty > 0 && !floatingCart.classList.contains('pop-in')) {
+            floatingCart.classList.add('pop-in');
+        }
+    }
+}
+
+// Checkout (WhatsApp)
+window.checkout = () => {
+    if (Object.keys(cart).length === 0) return;
+
+    let message = `*Hello, I would like to place an order:*\n\n`;
+    let index = 1;
+    let totalEstimate = 0;
+
+    Object.values(cart).forEach(item => {
+        const itemTotal = item.price * item.qty;
+        message += `${index}. *${item.name}* (${item.qty} ${item.unit}) - ₹${itemTotal}\n`;
+        totalEstimate += itemTotal;
+        index++;
+    });
+
+    message += `\n*Total Estimate: ₹${totalEstimate}*\n`;
+    message += `------------------------------\n`;
+    message += `*Delivery Address:*\n`;
+
+    const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+};
