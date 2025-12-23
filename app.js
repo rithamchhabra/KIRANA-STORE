@@ -74,15 +74,9 @@ const CATEGORY_META = {
 
 const Navbar = () => `
     <nav class="navbar">
-        <div class="container" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px;">
+        <div class="container" style="display:flex; justify-content:space-between; align-items:center;">
             <h1 class="logo">Kirana Store</h1>
-            <div style="flex:1; max-width:400px; display:flex; gap:5px;">
-                <input type="search" 
-                       placeholder="🔍 Search items..." 
-                       oninput="window.setSearch(this.value)"
-                       style="width:100%; padding:8px 15px; border-radius:20px; border:1px solid #ddd; outline:none;">
-            </div>
-            <a href="#products" class="btn-primary-outline" style="white-space:nowrap;">Browse Items</a>
+            <a href="#products" class="btn-primary-outline">Browse Items</a>
         </div>
     </nav>
 `;
@@ -114,6 +108,15 @@ const ProductsSection = () => `
     <section id="products" class="section">
         <div class="container">
             <h3 class="section-title">Fresh Products</h3>
+            
+            <!-- Search Bar (Mobile Friendly) -->
+            <div style="margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto;">
+                <input type="search" 
+                       placeholder="🔍 Search for Atta, Rice, Maggi..." 
+                       oninput="window.setSearch(this.value)"
+                       style="width:100%; padding:12px 20px; border-radius:30px; border:1px solid #ddd; outline:none; font-size:1rem; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+            </div>
+
             <div id="product-grid" class="product-grid">
                 <div class="loader" id="loader" style="display:block;"></div>
             </div>
