@@ -1,5 +1,5 @@
 // app.js - Main Client Logic (SPA Version)
-import { db, collection, onSnapshot } from './firebase-config.js';
+import { db, collection, onSnapshot, doc, getDoc } from './firebase-config.js';
 
 // Configuration
 const PHONE_NUMBER = "9111676448";
@@ -9,6 +9,59 @@ const app = document.getElementById('app');
 let products = [];
 let cart = {};
 let activeCategory = 'all';
+let activeSearch = ''; // Search state
+let storeSettings = { minPrice: 0, minQty: 0 };
+
+// ... (HTML Components Same)
+
+// Fetch Settings
+async function loadSettings() {
+    try {
+        const docSnap = await getDoc(doc(db, 'settings', 'config'));
+        if (docSnap.exists()) {
+            storeSettings = docSnap.data();
+        }
+    } catch (err) {
+        console.log("Settings Load Error:", err);
+    }
+}
+loadSettings();
+
+// ... (Rendering Logic Same)
+
+// Checkout (WhatsApp)
+window.checkout = () => {
+    const totalQty = Object.values(cart).reduce((sum, item) => sum + item.qty, 0);
+    const totalPrice = Object.values(cart).reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+    if (totalQty === 0) return;
+
+    // Validation
+    if (storeSettings.minQty > 0 && totalQty < storeSettings.minQty) {
+        alert(`⚠️ Minimum Order Quantity is ${storeSettings.minQty} items.\nYou have ${totalQty}.`);
+        return;
+    }
+    if (storeSettings.minPrice > 0 && totalPrice < storeSettings.minPrice) {
+        alert(`⚠️ Minimum Order Amount is ₹${storeSettings.minPrice}.\nYour total is ₹${totalPrice}.`);
+        return;
+    }
+
+    let message = `*Hello, I would like to place an order:*\n\n`;
+    let index = 1;
+
+    Object.values(cart).forEach(item => {
+        const itemTotal = item.price * item.qty;
+        message += `${index}. *${item.name}* (${item.qty} ${item.unit}) - ₹${itemTotal}\n`;
+        index++;
+    });
+
+    message += `\n*Total Estimate: ₹${totalPrice}*\n`;
+    message += `------------------------------\n`;
+    message += `*Delivery Address:*\n`;
+
+    const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+};
 
 // --- Components (HTML Templates) ---
 
@@ -21,9 +74,15 @@ const CATEGORY_META = {
 
 const Navbar = () => `
     <nav class="navbar">
-        <div class="container">
+        <div class="container" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px;">
             <h1 class="logo">Kirana Store</h1>
-            <a href="#products" class="btn-primary-outline">Browse Items</a>
+            <div style="flex:1; max-width:400px; display:flex; gap:5px;">
+                <input type="search" 
+                       placeholder="🔍 Search items..." 
+                       oninput="window.setSearch(this.value)"
+                       style="width:100%; padding:8px 15px; border-radius:20px; border:1px solid #ddd; outline:none;">
+            </div>
+            <a href="#products" class="btn-primary-outline" style="white-space:nowrap;">Browse Items</a>
         </div>
     </nav>
 `;
@@ -150,6 +209,12 @@ window.setCategory = (cat) => {
     renderProductGrid(products);
 };
 
+// Set Search Global
+window.setSearch = (query) => {
+    activeSearch = query.toLowerCase().trim();
+    renderProductGrid(products);
+};
+
 // Fetch Products
 const productsRef = collection(db, 'products');
 onSnapshot(productsRef, (snapshot) => {
@@ -167,12 +232,19 @@ function renderProductGrid(fullList) {
 
 
     let displayList = fullList;
+
+    // 1. Filter by Category
     if (activeCategory !== 'all') {
-        displayList = fullList.filter(p => p.category === activeCategory);
+        displayList = displayList.filter(p => p.category === activeCategory);
+    }
+
+    // 2. Filter by Search
+    if (activeSearch) {
+        displayList = displayList.filter(p => p.name.toLowerCase().includes(activeSearch));
     }
 
     if (displayList.length === 0) {
-        grid.innerHTML = '<p style="text-align:center; width:100%; color:#666;">No products found.</p>';
+        grid.innerHTML = '<p style="text-align:center; width:100%; color:#666; padding:20px;">No products found matching your search.</p>';
         return;
     }
 
@@ -235,25 +307,4 @@ function updateCartUI() {
     }
 }
 
-// Checkout (WhatsApp)
-window.checkout = () => {
-    if (Object.keys(cart).length === 0) return;
 
-    let message = `*Hello, I would like to place an order:*\n\n`;
-    let index = 1;
-    let totalEstimate = 0;
-
-    Object.values(cart).forEach(item => {
-        const itemTotal = item.price * item.qty;
-        message += `${index}. *${item.name}* (${item.qty} ${item.unit}) - ₹${itemTotal}\n`;
-        totalEstimate += itemTotal;
-        index++;
-    });
-
-    message += `\n*Total Estimate: ₹${totalEstimate}*\n`;
-    message += `------------------------------\n`;
-    message += `*Delivery Address:*\n`;
-
-    const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
-};
