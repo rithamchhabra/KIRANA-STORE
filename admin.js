@@ -184,7 +184,17 @@ Basmati Rice, staples, 90, kg, https://link.to/rice.jpg"
                 </select>
                 <input id="c-price" type="number" placeholder="Price" required style="padding:8px; border:1px solid #ddd; border-radius:4px;">
                 <input id="c-unit" placeholder="Unit (kg, packet)" required style="padding:8px; border:1px solid #ddd; border-radius:4px;">
-                <input id="c-img" placeholder="Image URL" required style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                    <label style="font-size:0.8rem; color:#666;">Product Image</label>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <input type="file" id="c-file" accept="image/*" style="font-size:0.8rem; flex:1;">
+                        <button type="button" onclick="window.uploadImage()" id="upload-btn" style="background:#3b82f6; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-size:0.8rem;">Upload</button>
+                    </div>
+                </div>
+                <input id="c-img" placeholder="Or paste Image URL" required style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+                <div id="img-preview-container" style="text-align:center; display:none;">
+                    <img id="c-img-preview" src="" style="max-width:100px; max-height:100px; border-radius:8px; margin-top:5px; border:1px solid #eee;">
+                </div>
                 <button type="submit" style="background:#059669; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Save Product</button>
             </form>
         </div>
@@ -367,6 +377,65 @@ window.openAddModal = () => {
     document.getElementById('custom-form').reset();
 };
 
+// Cloudinary Upload Logic
+window.uploadImage = async () => {
+    const fileInput = document.getElementById('c-file');
+    const urlInput = document.getElementById('c-img');
+    const uploadBtn = document.getElementById('upload-btn');
+    const preview = document.getElementById('c-img-preview');
+    const previewContainer = document.getElementById('img-preview-container');
+
+    const file = fileInput.files[0];
+    if (!file) {
+        alert("Please select a file first!");
+        return;
+    }
+
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+    if (!cloudName || cloudName === "your_cloud_name_here") {
+        alert("⚠️ Cloudinary Cloud Name is missing in .env!");
+        return;
+    }
+
+    uploadBtn.textContent = "Uploading...";
+    uploadBtn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', uploadPreset);
+
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.secure_url) {
+            urlInput.value = data.secure_url;
+            preview.src = data.secure_url;
+            previewContainer.style.display = 'block';
+            uploadBtn.textContent = "Uploaded! ✅";
+        } else {
+            throw new Error(data.error?.message || "Upload failed");
+        }
+
+        setTimeout(() => {
+            uploadBtn.textContent = "Upload";
+            uploadBtn.disabled = false;
+        }, 2000);
+
+    } catch (err) {
+        console.error("Cloudinary Error:", err);
+        alert("Upload Failed: " + err.message);
+        uploadBtn.textContent = "Retry";
+        uploadBtn.disabled = false;
+    }
+};
+
 // Open Modal in EDIT Mode
 window.openEditModal = (id) => {
     const p = productsMap[id];
@@ -383,6 +452,16 @@ window.openEditModal = (id) => {
     document.getElementById('c-price').value = p.price;
     document.getElementById('c-unit').value = p.unit;
     document.getElementById('c-img').value = p.image;
+
+    // Show Preview
+    const preview = document.getElementById('c-img-preview');
+    const previewContainer = document.getElementById('img-preview-container');
+    if (p.image) {
+        preview.src = p.image;
+        previewContainer.style.display = 'block';
+    } else {
+        previewContainer.style.display = 'none';
+    }
 };
 
 window.quickAdd = async (item) => {
